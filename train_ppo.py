@@ -186,6 +186,7 @@ def train_ppo():
                     for r in response_tensors
                 ]
             # Print example pairs for monitoring
+            '''
             if batch_start % 100 == 0:
                 print("\nExample response pairs:")
                 for i in range(min(2, len(batch_prompts))):
@@ -193,7 +194,7 @@ def train_ppo():
                     print(f"Response 1: {response_pairs[i][0]}")
                     print(f"Response 2: {response_pairs[i][1]}")
                     print("-" * 80)
-            
+            '''
             # Get rewards and determine chosen responses
             chosen_responses = []
             chosen_tensors = []
@@ -220,10 +221,19 @@ def train_ppo():
             chosen_rewards = []
             for t in chosen_tensors:
                 # Create reward tensor of same length as response
+                assert t.ndim == 1, f"Expected 1D tensor, got shape {t.shape}"
                 reward = torch.zeros_like(t, dtype=torch.float)
-                reward[-1] = 1.0  # assign reward only at the final token
+                # Find the last non-padding token
+                last_non_pad = (t != tokenizer.pad_token_id).nonzero()[-1].item()
+                # Create a reward tensor that matches the response length
+                reward = torch.zeros(t.shape[0], dtype=torch.float)
+                #reward[last_non_pad] = torch.tensor(1.0, dtype=torch.float)  # assign reward only at the final token
+                reward[last_non_pad] = float(1.0)
                 chosen_rewards.append(reward)
             
+            for q, r, rew in zip(query_tensors, chosen_tensors, chosen_rewards):
+                assert q.ndim == r.ndim == rew.ndim == 1
+                assert r.shape == rew.shape, f"Mismatch: {r.shape} vs {rew.shape}"
             # Run PPO step with chosen responses
             stats = ppo_trainer.step(query_tensors, chosen_tensors, chosen_rewards)
             
